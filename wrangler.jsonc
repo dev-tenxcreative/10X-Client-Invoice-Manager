@@ -13,14 +13,7 @@
   // 02:30 UTC = 08:00 Asia/Colombo.
   "triggers": { "crons": ["30 2 * * *"] },
   "observability": { "enabled": true },
-  "vars": {
-    "APP_URL": "https://tenx-client-portal.example.workers.dev",
-    "SUPER_ADMIN_EMAIL": "dev@tenxcreative.com",
-    "EMAIL_PROVIDER": "smtp",
-    "SMTP_HOST": "smtp.gmail.com",
-    "SMTP_PORT": "465",
-    "MONGODB_DB": "tenx_portal"
-  }
+  "keep_vars": true,
   // Secrets (set with `npx wrangler secret put NAME`):
   // MONGODB_URI, MONGODB_PASSWORD, SESSION_SECRET, CRON_SECRET, SMTP_USER, SMTP_PASS,
   // EMAIL_FROM, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY
