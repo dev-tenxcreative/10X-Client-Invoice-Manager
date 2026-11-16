@@ -1,0 +1,46 @@
+import type { Cols } from "./db";
+
+/** Creates every required index. Safe to run repeatedly (seed script and deploy). */
+export async function ensureIndexes(c: Cols) {
+  await Promise.all([
+    c.users.createIndex({ email: 1 }, { unique: true }),
+    c.users.createIndex({ role: 1, status: 1 }),
+    c.sessions.createIndex({ tokenHash: 1 }, { unique: true }),
+    c.sessions.createIndex({ userId: 1 }),
+    c.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    c.authTokens.createIndex({ tokenHash: 1 }, { unique: true }),
+    c.authTokens.createIndex({ userId: 1, type: 1 }),
+    c.authTokens.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 7 * 24 * 3600 }),
+    c.companies.createIndex({ nameLower: 1 }, { unique: true }),
+    c.companies.createIndex({ status: 1 }),
+    c.memberships.createIndex({ userId: 1, companyId: 1 }, { unique: true }),
+    c.memberships.createIndex({ companyId: 1 }),
+    c.invoices.createIndex({ number: 1 }, { unique: true }),
+    c.invoices.createIndex({ companyId: 1, status: 1, dueDate: 1 }),
+    c.invoices.createIndex({ status: 1, dueDate: 1 }),
+    c.invoices.createIndex({ issueDate: -1 }),
+    c.invoices.createIndex(
+      { planId: 1, period: 1 },
+      { unique: true, partialFilterExpression: { planId: { $exists: true }, period: { $exists: true } } },
+    ),
+    c.payments.createIndex({ invoiceId: 1 }),
+    c.payments.createIndex({ companyId: 1, date: -1 }),
+    c.paymentSubmissions.createIndex({ status: 1, createdAt: -1 }),
+    c.paymentSubmissions.createIndex({ invoiceId: 1 }),
+    c.recurringPlans.createIndex({ status: 1 }),
+    c.recurringPlans.createIndex({ companyId: 1 }),
+    c.proposals.createIndex({ reference: 1 }, { unique: true }),
+    c.proposals.createIndex({ companyId: 1, status: 1 }),
+    c.counters.createIndex({ type: 1, year: 1 }, { unique: true }),
+    c.emailLogs.createIndex({ status: 1, createdAt: -1 }),
+    c.emailLogs.createIndex({ createdAt: -1 }),
+    c.emailLogs.createIndex({ "related.id": 1 }),
+    c.reminderLogs.createIndex({ invoiceId: 1, step: 1 }, { unique: true }),
+    c.files.createIndex({ key: 1 }, { unique: true }),
+    c.files.createIndex({ companyId: 1 }),
+    c.auditLogs.createIndex({ at: -1 }),
+    c.auditLogs.createIndex({ entityType: 1, entityId: 1 }),
+    c.rateLimits.createIndex({ key: 1, at: -1 }),
+    c.rateLimits.createIndex({ at: 1 }, { expireAfterSeconds: 3600 }),
+  ]);
+}

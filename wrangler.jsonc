@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tenx-client-portal",
+  // custom-worker.ts wraps the generated OpenNext worker and adds the daily cron handler.
+  "main": "custom-worker.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "tenx-client-portal" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "tenx-portal-files" }],
+  // Browser Run (Browser Rendering) for HTML -> PDF.
+  "browser": { "binding": "BROWSER" },
+  // 02:30 UTC = 08:00 Asia/Colombo.
+  "triggers": { "crons": ["30 2 * * *"] },
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_URL": "https://tenx-client-portal.example.workers.dev",
+    "SUPER_ADMIN_EMAIL": "dev@tenxcreative.com",
+    "EMAIL_PROVIDER": "smtp",
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "465",
+    "MONGODB_DB": "tenx_portal"
+  }
+  // Secrets (set with `npx wrangler secret put NAME`):
+  // MONGODB_URI, MONGODB_PASSWORD, SESSION_SECRET, CRON_SECRET, SMTP_USER, SMTP_PASS,
+  // EMAIL_FROM, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY
+}

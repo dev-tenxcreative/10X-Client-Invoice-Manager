@@ -1,0 +1,18 @@
+node_modules
+.next
+.open-next
+.wrangler
+.dev.vars
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+coverage
+test-results
+
+# Brand reference samples (may contain client details); kept locally only
+reference/
+
+# Empty clone of the GitHub repo (not part of the project)
+10X-Client-Invoice-Manager/
