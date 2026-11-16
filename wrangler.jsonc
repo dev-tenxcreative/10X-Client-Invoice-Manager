@@ -7,7 +7,7 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "tenx-client-portal" }],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "tenx-portal-files" }],
+  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "tenx-portal-files" }],
   // Browser Run (Browser Rendering) for HTML -> PDF.
   "browser": { "binding": "BROWSER" },
   // 02:30 UTC = 08:00 Asia/Colombo.
