@@ -57,7 +57,9 @@ export async function GET(req: Request) {
     if (to) {
       await time("email", async () => {
         const log = await sendEmail({ template: "test", to: [to], vars: { client_name: "there", action_link: env("APP_URL", "") } });
-        return { status: log.status, error: log.error };
+        // sendEmail() returns the pre-delivery doc; the failure reason is only on the stored log.
+        const stored = await (await cols()).emailLogs.findOne({ _id: log._id }, { projection: { error: 1 } });
+        return { status: log.status, error: stored?.error };
       });
     }
     out.runtime = typeof navigator !== "undefined" ? navigator.userAgent : "node";

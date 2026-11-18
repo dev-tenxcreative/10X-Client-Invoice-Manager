@@ -28,12 +28,30 @@ interface Outgoing {
 
 async function deliverSmtp(msg: Outgoing): Promise<void> {
   const nodemailer = await import("nodemailer");
+  const host = env("SMTP_HOST", "smtp.gmail.com");
   const port = Number(env("SMTP_PORT", "465"));
+  const secure = port === 465;
   const transport = nodemailer.createTransport({
-    host: env("SMTP_HOST", "smtp.gmail.com"),
+    host,
     port,
-    secure: port === 465,
+    secure,
+    requireTLS: !secure,
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
     auth: { user: env("SMTP_USER"), pass: env("SMTP_PASS").replace(/\s+/g, "") },
+    // Cloudflare Workers: Nodemailer resolves the host to an IP and opens TLS to that bare IP,
+    // which the Workers socket layer rejects ("proxy request failed, cannot connect to the
+    // specified address"). For implicit TLS (465) we open the socket ourselves by hostname.
+    // STARTTLS (587) works without this.
+    ...(secure && {
+      getSocket(_opts: unknown, cb: (err: Error | null, res?: { connection: import("node:tls").TLSSocket; secured: boolean }) => void) {
+        import("node:tls").then((tls) => {
+          const s = tls.connect({ host, port, servername: host });
+          s.once("secureConnect", () => cb(null, { connection: s, secured: true }));
+          s.once("error", (e) => cb(e));
+        }, (e) => cb(e));
+      },
+    }),
   });
   await transport.sendMail({
     from: env("EMAIL_FROM", env("SMTP_USER")),
