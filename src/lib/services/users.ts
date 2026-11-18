@@ -7,6 +7,7 @@ import { passwordProblem } from "../auth/password-policy";
 import { clearHits, hit, recentHits, turnstileEnabled, verifyTurnstile } from "../auth/rate-limit";
 import { sendEmail } from "../email";
 import { audit, type Actor } from "./audit";
+import { isAdminRole } from "../permissions";
 import type { AuthTokenType, Role, UserDoc } from "../types";
 
 export const ACTIVATION_TTL_MS = 72 * 60 * 60 * 1000;
@@ -230,8 +231,65 @@ function requireSuper(actor: Actor) {
   if (actor.role !== "super_admin") throw new ForbiddenError("Only the super admin can manage admins.");
 }
 
+/**
+ * Removing an admin keeps their record as a deactivated client (for the audit trail).
+ * Records removed before `removedAdminAt` existed are found through the audit log.
+ */
+export async function wasRemovedAdmin(user: Pick<UserDoc, "_id" | "role" | "removedAdminAt">): Promise<boolean> {
+  if (user.role !== "client") return false;
+  if (user.removedAdminAt) return true;
+  const c = await cols();
+  return Boolean(await c.auditLogs.findOne({ action: "admin.remove", entityId: user._id }));
+}
+
+/** Removed admins that can be given access again (shown on the Admins page). */
+export async function listRemovedAdmins(): Promise<UserDoc[]> {
+  const c = await cols();
+  const ids = (await c.auditLogs.distinct("entityId", { action: "admin.remove" })).filter((id): id is ObjectId => id instanceof ObjectId);
+  return c.users
+    .find({ role: "client", $or: [{ removedAdminAt: { $exists: true } }, { _id: { $in: ids } }] })
+    .sort({ name: 1 })
+    .toArray();
+}
+
+/** Gives a removed admin access again: back to "invited" with a fresh activation link. */
+export async function restoreAdmin(actor: Actor, userId: ObjectId, name?: string): Promise<UserDoc> {
+  requireSuper(actor);
+  const c = await cols();
+  const target = await c.users.findOne({ _id: userId });
+  if (!target) throw new NotFoundError();
+  if (!(await wasRemovedAdmin(target))) throw new AppError("This user was not removed as an admin.");
+  if (await c.memberships.findOne({ userId })) {
+    throw new AppError("This email is now a client contact of a company. Use a different email for the admin.", "email");
+  }
+  await c.users.updateOne(
+    { _id: userId },
+    // The old password is cleared: they choose a new one from the activation link.
+    { $set: { role: "admin", status: "invited", name: name?.trim() || target.name, updatedAt: new Date() }, $unset: { passwordHash: "", removedAdminAt: "" } },
+  );
+  await c.sessions.deleteMany({ userId });
+  const restored = (await c.users.findOne({ _id: userId }))!;
+  await audit(actor, "admin.restore", "user", userId, { role: target.role, status: target.status }, { role: "admin", status: "invited" });
+  await inviteAndEmail(restored);
+  return restored;
+}
+
 export async function inviteAdmin(actor: Actor, input: { name: string; email: string }) {
   requireSuper(actor);
+  const existing = await findUserByEmail(input.email);
+  if (existing) {
+    if (isAdminRole(existing.role)) {
+      if (existing.status === "active") throw new AppError("This person is already an admin.", "email");
+      if (existing.status === "deactivated" && existing.passwordHash) {
+        throw new AppError("This admin is deactivated. Use Reactivate in the list above.", "email");
+      }
+      // Pending or cancelled invitation: send a fresh link.
+      await resendInvitation(actor, existing._id);
+      return existing;
+    }
+    if (await wasRemovedAdmin(existing)) return restoreAdmin(actor, existing._id, input.name);
+    throw new AppError("This email belongs to a client contact. Use a different email for the admin.", "email");
+  }
   const user = await createUser({ name: input.name, email: input.email, role: "admin" });
   await audit(actor, "admin.invite", "user", user._id, undefined, { email: user.email, role: "admin" });
   await inviteAndEmail(user);
@@ -259,7 +317,7 @@ export async function removeAdmin(actor: Actor, userId: ObjectId) {
   if (!target) throw new NotFoundError();
   assertMayModify(target, "remove");
   if (target.role !== "admin") throw new AppError("This user is not an admin.");
-  await c.users.updateOne({ _id: userId }, { $set: { status: "deactivated", role: "client", updatedAt: new Date() } });
+  await c.users.updateOne({ _id: userId }, { $set: { status: "deactivated", role: "client", removedAdminAt: new Date(), updatedAt: new Date() } });
   await c.sessions.deleteMany({ userId });
   await c.authTokens.updateMany({ userId, usedAt: { $exists: false } }, { $set: { usedAt: new Date() } });
   await audit(actor, "admin.remove", "user", userId, { role: target.role, status: target.status }, { role: "client", status: "deactivated" });

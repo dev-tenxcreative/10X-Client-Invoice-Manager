@@ -16,6 +16,8 @@ export interface UserDoc {
   lastSignInAt?: Date;
   invitedAt?: Date;
   activatedAt?: Date;
+  /** Set when the super admin removes admin access (the record is kept for the audit trail). */
+  removedAdminAt?: Date;
   isDemo?: boolean;
   createdAt: Date;
   updatedAt: Date;

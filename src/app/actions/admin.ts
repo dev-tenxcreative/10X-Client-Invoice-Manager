@@ -169,6 +169,10 @@ export async function adminUserAction(fd: FormData): Promise<ActionResult> {
   return run("adminUser", async (actor) => {
     const id = oid(String(fd.get("userId")));
     const op = String(fd.get("op"));
+    if (op === "restore") {
+      const u = await users.restoreAdmin(actor, id);
+      return { ok: true, message: `Admin access restored. A new activation link was sent to ${u.email}.` };
+    }
     if (op === "remove") await users.removeAdmin(actor, id);
     else if (op === "deactivate") await users.setUserStatus(actor, id, "deactivated");
     else if (op === "reactivate") await users.setUserStatus(actor, id, "active");

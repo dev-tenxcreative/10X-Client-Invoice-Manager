@@ -116,6 +116,28 @@ describe("super admin protection", () => {
     await expect(svc.users.changeRole(actor, sup._id, "admin")).rejects.toThrow(/super admin/);
     await expect(svc.users.changeEmail(actor, sup._id, "x@y.test")).rejects.toThrow(/cannot be changed/);
   });
+  it("a removed admin can be invited again with the same email", async () => {
+    const c = await svc.db.cols();
+    const invited = await svc.users.inviteAdmin(actor, { name: "Re Admin", email: "Re.Admin@x.test" });
+    await c.users.updateOne({ _id: invited._id }, { $set: { status: "active", passwordHash: "old-hash" } });
+    await svc.users.removeAdmin(actor, invited._id);
+    // Same as records removed before removedAdminAt existed: found through the audit log.
+    await c.users.updateOne({ _id: invited._id }, { $unset: { removedAdminAt: "" } });
+    expect((await svc.users.listRemovedAdmins()).map((u) => u.email)).toContain("re.admin@x.test");
+
+    const back = await svc.users.inviteAdmin(actor, { name: "Re Admin 2", email: "re.admin@x.test" });
+    expect(back._id.equals(invited._id)).toBe(true);
+    const fresh = (await c.users.findOne({ _id: invited._id }))!;
+    expect(fresh).toMatchObject({ role: "admin", status: "invited", name: "Re Admin 2" });
+    expect(fresh.passwordHash).toBeUndefined();
+    expect(await c.authTokens.countDocuments({ userId: invited._id, type: "activation", usedAt: { $exists: false } })).toBe(1);
+    expect((await svc.users.listRemovedAdmins()).map((u) => u.email)).not.toContain("re.admin@x.test");
+    // Active admin, and a client contact's email, are refused with a clear message.
+    await c.users.updateOne({ _id: invited._id }, { $set: { status: "active" } });
+    await expect(svc.users.inviteAdmin(actor, { name: "X", email: "re.admin@x.test" })).rejects.toThrow(/already an admin/);
+    const client = await newClient("Restore Co", "contact@restore.test");
+    await expect(svc.users.inviteAdmin(actor, { name: "X", email: client.user.email })).rejects.toThrow(/client contact/);
+  });
   it("a normal admin cannot manage admins", async () => {
     const admin: Actor = { userId: new ObjectId(), email: "admin@x.test", role: "admin", name: "A" };
     await expect(svc.users.inviteAdmin(admin, { name: "B", email: "b@x.test" })).rejects.toThrow(/super admin/);

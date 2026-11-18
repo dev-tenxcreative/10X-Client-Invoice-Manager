@@ -211,6 +211,9 @@ Test accounts (local run): super admin `dev@tenxcreative.com` (activated from th
 | ADM-07 | P1 | Local | Audit log lists actions with actor and time | Entries present, append-only | PASS |
 | ADM-08 | P0 | Local | Super admin invites admin; admin activates | New admin can sign in | PASS |
 | ADM-09 | P1 | Local | Super admin deactivates / reactivates / removes an admin | Works; removed admin cannot sign in | NOT RUN |
+| ADM-10 | P0 | Local | Super admin removes an admin, then invites the same email again (any letter case) | Same user restored as Admin/Invited, old password cleared, new activation link works, old link dead | FIXED |
+| ADM-11 | P1 | Local | Removed admins section: "Restore access"; cancelled admin invite: "Resend invite" | Restore sends a new link; resend re-invites | PASS (unit test) |
+| ADM-12 | P1 | Local | Invite an email that is an active admin / a client contact | Clear error, nothing changes | PASS (unit test) |
 
 ---
 

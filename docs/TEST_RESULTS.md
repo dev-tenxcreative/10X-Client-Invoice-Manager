@@ -32,6 +32,17 @@
 * **Symptom:** console error on every production page: `static.cloudflareinsights.com/beacon.min.js` violates `script-src`.
 * **Fix:** `next.config.ts` CSP now allows `https://static.cloudflareinsights.com` (script-src) and `https://cloudflareinsights.com` (connect-src). Alternative: turn off Web Analytics for the zone in Cloudflare.
 
+### 4. Removed admin cannot be invited again or reactivated — P0 (ADM-10), reported after the run
+* **Symptom:** after the super admin removes an admin, inviting the same email fails ("A user with this email already exists") and the person is not listed anywhere, so they cannot be set back to active.
+* **Cause:** "Remove" keeps the user for the audit trail as `role: client, status: deactivated`; the Admins page lists only admin roles and `inviteAdmin()` always created a new user.
+* **Fix (`src/lib/services/users.ts`, `src/app/admin/admins/page.tsx`, `src/app/actions/admin.ts`):**
+  * Inviting a removed admin's email restores the same user: role Admin, status Invited, old password cleared, new activation link sent (audit `admin.restore`).
+  * New "Removed admins" section on the Admins page with **Restore access**.
+  * Clear messages when the email is already an active admin, a deactivated admin (use Reactivate) or a client contact.
+  * Cancelled admin invites now show **Resend invite**.
+  * Removal now stores `removedAdminAt`; older removals are found through the `admin.remove` audit entry, so existing records (already in the production DB) are covered without a migration.
+* **Verified:** new integration test, plus the browser flow invite → remove → re-invite → activate → admin dashboard.
+
 ## On hold — R2 storage (as requested)
 
 Production `/api/health` returns `r2: "R2 binding FILES is not configured"` (the `r2_buckets` line is commented out in `wrangler.jsonc`). Everything that stores a file fails until R2 is bound:
@@ -66,6 +77,8 @@ Statement PDF/CSV and report CSVs do not use R2 and work.
 | `src/lib/services/invoices.ts` | Prepare PDF + recipients before marking Sent |
 | `src/lib/services/proposals.ts` | Build PDF before marking Sent |
 | `next.config.ts` | CSP allows Cloudflare Web Analytics |
+| `src/lib/services/users.ts`, `src/app/admin/admins/page.tsx`, `src/app/actions/admin.ts`, `src/lib/types.ts` | Re-invite / restore removed admins |
+| `tests/integration.test.ts` | Regression test for removed-admin re-invite |
 | `docs/TEST_CASES.md` | New: main test case list with statuses |
 | `docs/TEST_RESULTS.md` | New: this report |
 
