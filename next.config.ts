@@ -5,11 +5,12 @@ const isDev = process.env.NODE_ENV !== "production";
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
+  // static.cloudflareinsights.com: Cloudflare Web Analytics beacon, injected by Cloudflare on the zone.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com https://static.cloudflareinsights.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
-  "connect-src 'self' https://challenges.cloudflare.com",
+  "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com",
   "frame-src 'self' blob: https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "form-action 'self'",

@@ -34,8 +34,11 @@ export function nextBillingDate(plan: PlanScheduleInput, today: string, invoiced
   if (plan.status === "ended") return null;
   // Anything already due but not invoiced will be created on the next run (today).
   if (duePeriods({ ...plan, status: "active" }, today, invoiced).length) return today;
+  // Note: keep `p = nextPeriod(p)` out of the for-update clause. Turbopack's production build
+  // mis-compiled `i++, p = nextPeriod(p)` (left `nextPeriod` unbound -> ReferenceError).
   let p = periodOf(plan.startDate < today ? today : plan.startDate);
-  for (let i = 0; i < 36; i++, p = nextPeriod(p)) {
+  for (let i = 0; i < 36; i++) {
+    if (i > 0) p = nextPeriod(p);
     const bd = billingDate(p, plan.billingDay);
     if (bd <= today || bd < plan.startDate) continue;
     if (plan.endDate && bd > plan.endDate) return null;

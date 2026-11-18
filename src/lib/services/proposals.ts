@@ -250,9 +250,10 @@ export async function sendProposal(actor: Actor, id: ObjectId, attachPdf: boolea
   const company = await c.companies.findOne({ _id: p.companyId });
   const r = await companyRecipients(p.companyId);
   if (r.to.length === 0) throw new AppError("This company has no contacts to send to.");
+  // Build the PDF first: if it fails, the proposal keeps its old status.
+  const attachments = attachPdf ? [await ensureProposalPdf({ ...p, status: "sent" })] : [];
   await c.proposals.updateOne({ _id: id }, { $set: { status: "sent", sentAt: new Date(), updatedAt: new Date() } });
   await audit(actor, "proposal.send", "proposal", id, { status: p.status }, { status: "sent", version: p.version });
-  const attachments = attachPdf ? [await ensureProposalPdf({ ...p, status: "sent" })] : [];
   return sendEmail({
     template: "proposal_sent",
     to: r.to,

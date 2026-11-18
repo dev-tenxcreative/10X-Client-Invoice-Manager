@@ -299,16 +299,23 @@ export async function sendInvoice(actor: Actor, id: ObjectId, opts: { email: boo
   const company = await c.companies.findOne({ _id: inv.companyId });
   if (!company) throw new NotFoundError();
   const firstSend = inv.status === "draft";
+  // Check recipients and build the PDF before locking the invoice, so a failure here leaves
+  // a draft as a draft instead of "sent" with no email.
+  let prepared: { r: Awaited<ReturnType<typeof companyRecipients>>; fileId: ObjectId; filename: string } | null = null;
+  if (opts.email) {
+    const r = await companyRecipients(inv.companyId);
+    if (r.to.length === 0) throw new AppError("This company has no contacts or billing emails to send to.");
+    const { fileId, filename } = await ensureInvoicePdf(firstSend ? { ...inv, status: "sent" } : inv);
+    prepared = { r, fileId, filename };
+  }
   if (firstSend) {
     const res = await c.invoices.updateOne({ _id: id, status: "draft" }, { $set: { status: "sent", sentAt: new Date(), updatedAt: new Date() } });
     if (res.modifiedCount !== 1) throw new AppError("This invoice was already sent.");
     inv.status = "sent";
   }
   await audit(actor, firstSend ? "invoice.send" : "invoice.resend", "invoice", id, undefined, { email: opts.email });
-  if (!opts.email) return null;
-  const { fileId, filename } = await ensureInvoicePdf(inv);
-  const r = await companyRecipients(inv.companyId);
-  if (r.to.length === 0) throw new AppError("This company has no contacts or billing emails to send to.");
+  if (!prepared) return null;
+  const { r, fileId, filename } = prepared;
   return sendEmail({
     template: "invoice_sent",
     to: r.to,
