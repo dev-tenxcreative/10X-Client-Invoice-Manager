@@ -18,7 +18,7 @@ export default async function AdminsPage() {
   ]);
   return (
     <>
-      <PageHeader title="Admins" description="Only the super admin can invite, deactivate or remove admins." />
+      <PageHeader title="Admins" description="Only the super admin can invite, deactivate or delete admins." />
       <Table className="mb-6">
         <thead><tr><Th>Name</Th><Th>Email</Th><Th>Role</Th><Th>Status</Th><Th>Last sign-in</Th><Th>Actions</Th></tr></thead>
         <tbody>
@@ -40,7 +40,7 @@ export default async function AdminsPage() {
                       {u.status === "active" && <ActionButton action={adminUserAction} fields={{ userId: fid, op: "deactivate" }} variant="danger" confirm={{ title: "Deactivate this admin?", summary: `${u.name} will be signed out and cannot sign in.`, danger: true }}>Deactivate</ActionButton>}
                       {u.status === "deactivated" && u.passwordHash && <ActionButton action={adminUserAction} fields={{ userId: fid, op: "reactivate" }}>Reactivate</ActionButton>}
                       {u.status === "deactivated" && !u.passwordHash && <ActionButton action={adminUserAction} fields={{ userId: fid, op: "resend" }}>Resend invite</ActionButton>}
-                      <ActionButton action={adminUserAction} fields={{ userId: fid, op: "remove" }} variant="danger" confirm={{ title: "Remove admin access?", summary: `${u.name} will lose admin access and be signed out. Their past actions stay in the audit log.`, danger: true, confirmLabel: "Remove" }}>Remove</ActionButton>
+                      <ActionButton action={adminUserAction} fields={{ userId: fid, op: "remove" }} variant="danger" confirm={{ title: "Delete this admin?", summary: `${u.name} will be signed out and permanently deleted. This cannot be undone. Their past actions stay in the audit log.`, danger: true, confirmLabel: "Delete" }}>Delete</ActionButton>
                     </div>
                   )}
                 </Td>

@@ -120,9 +120,16 @@ describe("super admin protection", () => {
     const c = await svc.db.cols();
     const invited = await svc.users.inviteAdmin(actor, { name: "Re Admin", email: "Re.Admin@x.test" });
     await c.users.updateOne({ _id: invited._id }, { $set: { status: "active", passwordHash: "old-hash" } });
-    await svc.users.removeAdmin(actor, invited._id);
-    // Same as records removed before removedAdminAt existed: found through the audit log.
-    await c.users.updateOne({ _id: invited._id }, { $unset: { removedAdminAt: "" } });
+    // Deleting an admin removes them from the database, with their sessions and links.
+    const other = await svc.users.inviteAdmin(actor, { name: "Gone Admin", email: "gone@x.test" });
+    await svc.users.removeAdmin(actor, other._id);
+    expect(await c.users.findOne({ _id: other._id })).toBeNull();
+    expect(await c.authTokens.countDocuments({ userId: other._id })).toBe(0);
+    const again = await svc.users.inviteAdmin(actor, { name: "Gone Admin", email: "gone@x.test" });
+    expect(again._id.equals(other._id)).toBe(false);
+    // Legacy records (removed before admins were deleted) are found through the audit log.
+    await c.users.updateOne({ _id: invited._id }, { $set: { status: "deactivated", role: "client" } });
+    await c.auditLogs.insertOne({ _id: new ObjectId(), action: "admin.remove", entityType: "user", entityId: invited._id, at: new Date() });
     expect((await svc.users.listRemovedAdmins()).map((u) => u.email)).toContain("re.admin@x.test");
 
     const back = await svc.users.inviteAdmin(actor, { name: "Re Admin 2", email: "re.admin@x.test" });

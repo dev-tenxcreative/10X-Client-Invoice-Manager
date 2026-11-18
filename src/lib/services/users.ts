@@ -309,7 +309,10 @@ export async function setUserStatus(actor: Actor, userId: ObjectId, status: "act
   await audit(actor, status === "deactivated" ? "user.deactivate" : "user.reactivate", "user", userId, { status: target.status }, { status });
 }
 
-/** Removes an admin's access. Admin users are kept (deactivated, role cleared) for the audit trail. */
+/**
+ * Deletes an admin from the database (user record, sessions and sign-in links).
+ * Their past actions stay in the audit log, which stores the actor's email.
+ */
 export async function removeAdmin(actor: Actor, userId: ObjectId) {
   requireSuper(actor);
   const c = await cols();
@@ -317,10 +320,10 @@ export async function removeAdmin(actor: Actor, userId: ObjectId) {
   if (!target) throw new NotFoundError();
   assertMayModify(target, "remove");
   if (target.role !== "admin") throw new AppError("This user is not an admin.");
-  await c.users.updateOne({ _id: userId }, { $set: { status: "deactivated", role: "client", removedAdminAt: new Date(), updatedAt: new Date() } });
   await c.sessions.deleteMany({ userId });
-  await c.authTokens.updateMany({ userId, usedAt: { $exists: false } }, { $set: { usedAt: new Date() } });
-  await audit(actor, "admin.remove", "user", userId, { role: target.role, status: target.status }, { role: "client", status: "deactivated" });
+  await c.authTokens.deleteMany({ userId });
+  await c.users.deleteOne({ _id: userId });
+  await audit(actor, "admin.delete", "user", userId, { name: target.name, email: target.email, role: target.role, status: target.status }, undefined);
 }
 
 export async function changeRole(actor: Actor, userId: ObjectId, role: Role) {

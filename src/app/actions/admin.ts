@@ -173,8 +173,11 @@ export async function adminUserAction(fd: FormData): Promise<ActionResult> {
       const u = await users.restoreAdmin(actor, id);
       return { ok: true, message: `Admin access restored. A new activation link was sent to ${u.email}.` };
     }
-    if (op === "remove") await users.removeAdmin(actor, id);
-    else if (op === "deactivate") await users.setUserStatus(actor, id, "deactivated");
+    if (op === "remove") {
+      await users.removeAdmin(actor, id);
+      return { ok: true, message: "Admin deleted." };
+    }
+    if (op === "deactivate") await users.setUserStatus(actor, id, "deactivated");
     else if (op === "reactivate") await users.setUserStatus(actor, id, "active");
     else if (op === "resend") await users.resendInvitation(actor, id);
     else if (op === "cancel") await users.cancelInvitation(actor, id);
