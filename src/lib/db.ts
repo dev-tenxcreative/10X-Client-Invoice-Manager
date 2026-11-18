@@ -11,23 +11,33 @@ import type {
 /*
  * Cloudflare Workers cannot reuse a socket across requests, so on Workers we open one
  * MongoClient per request and share it for every query in that request:
- *  - React Server Components / Server Actions: React `cache()` scopes it to the request.
- *  - Route handlers and the cron job: `withRequestDb()` scopes it with AsyncLocalStorage.
+ *  - Every request: custom-worker.ts runs the whole fetch inside this AsyncLocalStorage scope
+ *    (shared through globalThis because the worker entry is bundled separately), so pages,
+ *    Server Actions and route handlers all reuse one client.
+ *  - Fallback: React `cache()`. It only memoises during a Server Component render, NOT in
+ *    Server Actions, where it opened a new client on every call. Several clients exhaust the
+ *    Workers limit of 6 open connections per request and MongoDB server selection times out.
  * In plain Node (next dev, scripts, tests) a single process-wide client is reused.
  */
 
-const als = new AsyncLocalStorage<{ client?: Promise<MongoClient> }>();
+type DbScope = { client?: Promise<MongoClient> };
+
+const g = globalThis as unknown as { __tenxMongo?: Promise<MongoClient>; __tenxDbScope?: AsyncLocalStorage<DbScope> };
+const als = (g.__tenxDbScope ??= new AsyncLocalStorage<DbScope>());
 
 function createClient(): Promise<MongoClient> {
+  const workers = isWorkersRuntime();
   const client = new MongoClient(mongoUri(), {
-    maxPoolSize: isWorkersRuntime() ? 1 : 10,
+    maxPoolSize: workers ? 1 : 10,
+    // Streaming monitoring adds an extra RTT socket per replica-set member; polling keeps a
+    // Workers request to one monitor socket per member plus one pool socket, leaving room
+    // for SMTP / other outbound connections under the 6-connection limit.
+    ...(workers && { serverMonitoringMode: "poll" as const }),
     serverSelectionTimeoutMS: 10000,
     appName: "tenx-portal",
   });
   return client.connect();
 }
-
-const g = globalThis as unknown as { __tenxMongo?: Promise<MongoClient> };
 
 const requestClient = cache(() => createClient());
 
@@ -50,7 +60,9 @@ export async function getClient(): Promise<MongoClient> {
 /** Runs `fn` with one database client for its whole duration (route handlers, jobs). */
 export async function withRequestDb<T>(fn: () => Promise<T>): Promise<T> {
   if (!isWorkersRuntime()) return fn();
-  const store: { client?: Promise<MongoClient> } = {};
+  // Already inside the request-wide scope from custom-worker.ts: share its client.
+  if (als.getStore()) return fn();
+  const store: DbScope = {};
   try {
     return await als.run(store, fn);
   } finally {
